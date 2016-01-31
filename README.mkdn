@@ -1,0 +1,52 @@
+# NAME
+
+Cradle - Simple continuous integration system
+
+# VERSION
+
+version 0.001
+
+# STATUS
+
+<a href="https://travis-ci.org/preaction/Cradle"><img src="https://travis-ci.org/preaction/Cradle.svg?branch=master"></a><a href="https://coveralls.io/r/preaction/Cradle"><img src="https://coveralls.io/repos/preaction/Cradle/badge.png" alt="Coverage Status" /></a>
+
+# SYNOPSIS
+
+    ### Configure a job to build
+    # cradle.conf
+    {
+        jobs => {
+            job_name => {
+                source => '<git_url>',
+                steps => [
+                    'perl Makefile.PL',
+                    'make',
+                    'make test',
+                ],
+            },
+        },
+    }
+
+    ### Start a worker
+    cradle minion worker
+
+    ### Run a build
+    cradle minion job -e build -a '["job_name"]'
+
+# DESCRIPTION
+
+Cradle is a simple continuous integration (CI) server. CI servers will
+test your project every time it is updated to ensure that it builds
+successfully.  If the build fails, it will send a notification out so
+that it can be fixed.
+
+# AUTHOR
+
+Doug Bell <preaction@cpan.org>
+
+# COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2016 by Doug Bell.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
