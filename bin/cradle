@@ -1,0 +1,11 @@
+#!/usr/bin/env perl
+# PODNAME: cradle
+# ABSTRACT: Command-line interface to Cradle
+
+use strict;
+use warnings;
+use FindBin qw( $Bin );
+use lib "$Bin/../lib";
+
+require Mojolicious::Commands;
+Mojolicious::Commands->start_app( 'Cradle' );

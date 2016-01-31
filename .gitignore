@@ -1,3 +1,6 @@
 .build
 *.tar.gz
 /Cradle-*
+cradle.conf
+jobs
+data.db
