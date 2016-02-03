@@ -60,10 +60,13 @@ sub startup {
             my $source_dir = $job_conf->{source};
             system 'git', 'clone', $source_dir, $work_dir;
         }
-        local $ENV{GIT_WORK_TREE} = $work_dir;
-        local $ENV{GIT_DIR} = $work_dir->child( '.git' );
-        system 'git', 'fetch', 'origin';
-        system 'git', 'checkout', 'origin/master';
+
+        { # We cannot let these leak out into the world
+            local $ENV{GIT_WORK_TREE} = $work_dir;
+            local $ENV{GIT_DIR} = $work_dir->child( '.git' );
+            system 'git', 'fetch', 'origin';
+            system 'git', 'checkout', 'origin/master';
+        }
 
         $job_dir->child( 'build' )->mkpath;
         my $build_num = scalar $job_dir->child( 'build' )->children + 1;
@@ -78,6 +81,10 @@ sub startup {
             my $step_num = $i + 1;
             my $step_cmd = $steps[$i];
             $log->info( "Running '$name' build $build_num step $step_num: $step_cmd" );
+
+            # Fork to ensure that the chdir doesn't affect everything
+            # else running
+            # XXX: Better fork error handling
             my $pid = fork;
             if ( $pid ) {
                 # Parent process
@@ -85,9 +92,6 @@ sub startup {
             }
             else {
                 # Child process
-                delete $ENV{GIT_WORK_TREE};
-                delete $ENV{GIT_DIR};
-
                 my $build_fh = $build_log->openw;
                 chdir $work_dir;
 
