@@ -31,10 +31,9 @@ The directory to use for the cloned repository. Set by Cradle.
 =cut
 
 has work_dir => (
-    is => 'ro',
+    is => 'rw',
     isa => Path,
     coerce => Path->coercion,
-    required => 1,
 );
 
 =attr branch

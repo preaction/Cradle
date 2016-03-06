@@ -29,7 +29,7 @@ our @IMPORT_MODULES = (
 
 our %IMPORT_BUNDLES = (
     Test => [
-        qw( Test::More Test::Deep ),
+        qw( Test::More Test::Deep Test::Fatal ),
         'Path::Tiny' => [qw( tempdir )],
     ],
     Class => [
