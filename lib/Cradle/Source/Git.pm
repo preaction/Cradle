@@ -11,6 +11,7 @@ This module tracks a project using Git.
 
 use Cradle::Base 'Class';
 use Git::Repository;
+use Path::Tiny qw( cwd );
 
 =attr remote_url
 
@@ -59,12 +60,17 @@ sub update {
     my ( $self ) = @_;
 
     if ( !$self->work_dir->exists ) {
-        _run_git( 'Git::Repository', clone => $self->url => $self->work_dir );
-    }
-    else {
+        $self->work_dir->mkpath;
+        my $cwd = cwd;
+        chdir $self->work_dir;
+        _run_git( 'Git::Repository', 'init' );
+        chdir $cwd;
+
         my $repo = Git::Repository->new( work_tree => $self->work_dir );
-        _run_git( $repo, pull => origin => $self->branch );
+        _run_git( $repo, remote => 'add', 'origin', $self->url );
     }
+    my $repo = Git::Repository->new( work_tree => $self->work_dir );
+    _run_git( $repo, pull => origin => $self->branch );
 }
 
 =method has_update
@@ -98,9 +104,18 @@ sub has_update {
 
 sub _run_git {
     my ( $git, @args ) = @_;
+    my $cmdline = join " ", 'git', @args;
     my $cmd = $git->command( @args );
-    my @stdout = readline $cmd->stdout;
+    my $stdout = join( "\n", readline( $cmd->stdout ) ) // '';
+    my $stderr = join( "\n", readline( $cmd->stderr ) ) // '';
     $cmd->close;
+    my $exit = $cmd->exit;
+
+    if ( $exit ) {
+        die "git $args[0] exited with $exit\n\n-- CMD --\n$cmdline\n\n-- STDOUT --\n$stdout\n\n-- STDERR --\n$stderr\n";
+    }
+
+    return $cmd->exit;
 }
 
 sub _git_version {

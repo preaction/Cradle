@@ -2,6 +2,7 @@
 use Cradle::Base 'Test';
 use Cradle::Source::Git;
 use Git::Repository;
+use Path::Tiny qw( cwd );
 
 BEGIN {
     my $git_version = Cradle::Source::Git->_git_version;
@@ -12,14 +13,31 @@ BEGIN {
 
 sub _run_git {
     my ( $git, @args ) = @_;
+    my $cmdline = join " ", 'git', @args;
     my $cmd = $git->command( @args );
-    my @stdout = readline $cmd->stdout;
+    my $stdout = join( "\n", readline( $cmd->stdout ) ) // '';
+    my $stderr = join( "\n", readline( $cmd->stderr ) ) // '';
     $cmd->close;
+    my $exit = $cmd->exit;
+
+    if ( $exit ) {
+        die "git $args[0] exited with $exit\n\n-- CMD --\n$cmdline\n\n-- STDOUT --\n$stdout\n\n-- STDERR --\n$stderr\n";
+    }
+
+    return $cmd->exit;
 }
 
 my $repo_root = tempdir;
-Git::Repository->run( init => $repo_root );
+my $cwd = cwd;
+chdir $repo_root;
+Git::Repository->run( 'init' );
+chdir $cwd;
 my $repo = Git::Repository->new( work_tree => $repo_root );
+
+# Set some config so Git knows who we are (and doesn't complain)
+_run_git( $repo, config => 'user.name' => 'Cradle Test User' );
+_run_git( $repo, config => 'user.email' => 'cradle@example.com' );
+
 $repo_root->child( 'README' )->spew( 'Hello, World' );
 _run_git( $repo, add => 'README' );
 _run_git( $repo, commit => '-m', 'add README' );
