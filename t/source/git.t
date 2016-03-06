@@ -3,6 +3,13 @@ use Cradle::Base 'Test';
 use Cradle::Source::Git;
 use Git::Repository;
 
+BEGIN {
+    my $git_version = Cradle::Source::Git->_git_version;
+    plan skip_all => 'Git not installed' unless $git_version;
+    diag "Git version: $git_version";
+    plan skip_all => 'Git 1.7.2 or higher required' unless $git_version >= 1.007002;
+};
+
 sub _run_git {
     my ( $git, @args ) = @_;
     my $cmd = $git->command( @args );
