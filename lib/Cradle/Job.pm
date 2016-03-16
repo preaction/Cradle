@@ -218,7 +218,16 @@ sub build {
 
 sub _write_result {
     my ( $self, $build_dir, $result ) = @_;
-    $build_dir->child( 'build.yml' )->spew_utf8( YAML::Dump( $result ) );
+    my $yaml = YAML::Dump( $result );
+    $build_dir->child( 'build.yml' )->spew_utf8( $yaml );
+    my $job_dir = $build_dir->parent( 2 );
+    $job_dir->child( 'last_build.yml' )->spew_utf8( $yaml );
+    if ( $result->{status} eq 'success' ) {
+        $job_dir->child( 'last_success.yml' )->spew_utf8( $yaml );
+    }
+    else {
+        $job_dir->child( 'last_failure.yml' )->spew_utf8( $yaml );
+    }
 }
 
 1;

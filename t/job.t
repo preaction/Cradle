@@ -36,6 +36,19 @@ subtest 'basic job' => sub {
         },
         'build status is complete and correct'
             or diag explain $status;
+
+    my $last_build_file = $tmp->child( qw( job last_build.yml ) );
+    ok $last_build_file->is_file, 'last build status file exists';
+    my $last_build = YAML::Load( $last_build_file->slurp_utf8 );
+    cmp_deeply $last_build, $status, 'last build has build status';
+
+    my $last_success_file = $tmp->child( qw( job last_success.yml ) );
+    ok $last_success_file->is_file, 'last success status file exists';
+    my $last_success = YAML::Load( $last_success_file->slurp_utf8 );
+    cmp_deeply $last_success, $status, 'last success has build status';
+
+    my $last_failure_file = $tmp->child( qw( job last_failure.yml ) );
+    ok !$last_failure_file->exists, 'no last failure status file exists';
 };
 
 subtest 'job failure' => sub {
@@ -76,6 +89,19 @@ subtest 'job failure' => sub {
         },
         'build status is complete and correct'
             or diag explain $status;
+
+    my $last_build_file = $tmp->child( qw( job last_build.yml ) );
+    ok $last_build_file->is_file, 'last build status file exists';
+    my $last_build = YAML::Load( $last_build_file->slurp_utf8 );
+    cmp_deeply $last_build, $status, 'last build has build status';
+
+    my $last_success_file = $tmp->child( qw( job last_success.yml ) );
+    ok !$last_success_file->exists, 'no last success status file exists';
+
+    my $last_failure_file = $tmp->child( qw( job last_failure.yml ) );
+    ok $last_failure_file->is_file, 'last failure status file exists';
+    my $last_failure = YAML::Load( $last_failure_file->slurp_utf8 );
+    cmp_deeply $last_failure, $status, 'last failure has build status';
 };
 
 subtest 'load config' => sub {
