@@ -23,6 +23,19 @@ subtest 'basic job' => sub {
         'build 1 log has command output';
 
     is $result->{status}, 'success', 'status is success';
+
+    my $status_file = $tmp->child( qw( job build 1 build.yml ) );
+    ok $status_file->is_file, 'build status file exists';
+    my $status = YAML::Load( $status_file->slurp_utf8 );
+    cmp_deeply $status,
+        {
+            build_number => 1,
+            status => 'success',
+            start => re(qr(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})),
+            end => re(qr(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})),
+        },
+        'build status is complete and correct'
+            or diag explain $status;
 };
 
 subtest 'job failure' => sub {
@@ -48,6 +61,21 @@ subtest 'job failure' => sub {
     is $result->{step}, 1, 'failed on step 1';
     is $result->{error}, qq{Command "echo Hello && exit 1" exited non-zero "1"\n},
         'error from step object is correct';
+
+    my $status_file = $tmp->child( qw( job build 1 build.yml ) );
+    ok $status_file->is_file, 'build status file exists';
+    my $status = YAML::Load( $status_file->slurp_utf8 );
+    cmp_deeply $status,
+        {
+            build_number => 1,
+            status => 'failure',
+            start => re(qr(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})),
+            end => re(qr(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})),
+            step => $result->{step},
+            error => $result->{error},
+        },
+        'build status is complete and correct'
+            or diag explain $status;
 };
 
 subtest 'load config' => sub {

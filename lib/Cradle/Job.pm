@@ -14,6 +14,8 @@ use Cradle::Base 'Class';
 use Beam::Wire;
 use Cradle::Source::Git;
 use Cradle::Step::Command;
+use Time::Piece;
+use YAML;
 
 =attr job_dir
 
@@ -166,6 +168,7 @@ appropriate notifications.
 sub build {
     my ( $self ) = @_;
 
+    my $start = Time::Piece->new->datetime;
     my $job_dir = $self->job_dir;
 
     $job_dir->child( 'build' )->mkpath;
@@ -187,14 +190,35 @@ sub build {
         $self->log->info( "Running step $step_num" );
         my $step = $steps[$i];
         eval { $step->run( %step_args ) };
-        if ( $@ ) {
-            $self->log->info( "Step $step_num failed! Stopping! Error: $@" );
-            return { status => 'failure', step => $step_num, error => $@ };
+        if ( my $error = $@ ) {
+            $self->log->info( "Step $step_num failed! Stopping! Error: $error" );
+            my $result = {
+                start => $start,
+                end => Time::Piece->new->datetime,
+                build_number => $build_num,
+                status => 'failure',
+                step => $step_num,
+                error => $error,
+            };
+            $self->_write_result( $build_dir, $result );
+            return $result;
         }
     }
 
     $self->log->info( 'Job successful!' );
-    return { status => 'success' };
+    my $result = {
+        start => $start,
+        end => Time::Piece->new->datetime,
+        build_number => $build_num,
+        status => 'success',
+    };
+    $self->_write_result( $build_dir, $result );
+    return $result;
+}
+
+sub _write_result {
+    my ( $self, $build_dir, $result ) = @_;
+    $build_dir->child( 'build.yml' )->spew_utf8( YAML::Dump( $result ) );
 }
 
 1;
