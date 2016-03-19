@@ -13,25 +13,20 @@ version 0.001
 # SYNOPSIS
 
     ### Configure a job to build
-    # cradle.conf
-    {
-        jobs => {
-            job_name => {
-                source => '<git_url>',
-                steps => [
-                    'perl Makefile.PL',
-                    'make',
-                    'make test',
-                ],
-            },
-        },
-    }
+    mkdir jobs/<job_name>
+
+    # jobs/<job_name>/config.yml
+    source: <git_url>
+    steps:
+        - perl Makefile.PL
+        - make
+        - make test
 
     ### Start a worker
     cradle minion worker
 
     ### Run a build
-    cradle minion job -e build -a '["job_name"]'
+    cradle minion job -e build -a '["<job_name>"]'
 
 # DESCRIPTION
 
