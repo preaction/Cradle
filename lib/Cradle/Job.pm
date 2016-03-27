@@ -143,6 +143,55 @@ sub _build_steps {
     return \@out_steps;
 }
 
+=attr notify
+
+    # config.yml
+    notify:
+        failure:
+            $class: Cradle::Notify::Email
+            to: build@example.com
+        recovery:
+            - $class: Cradle::Notify::Email
+              to: build@example.com
+            - $class: Cradle::Notify::Email
+              to: success@example.com
+
+Send notifications for build events. There are multiple events that can
+send notifications. Each notification can be one or more
+C<Cradle::Notify> objects.
+
+The possible events are:
+
+=over 4
+
+=item start
+
+Notify when the build is started.
+
+=item finish
+
+Notify when the build is finished, no matter what the build status.
+
+=item success
+
+Notify only when the build completes successfully.
+
+=item failure
+
+Notify only when the build fails.
+
+=item recovery
+
+Notify only when the current build succeeded after the previous build failed.
+
+=cut
+
+has notify => (
+    is => 'ro',
+    isa => HashRef,
+    default => sub { {} },
+);
+
 =attr log
 
 The L<Mojo::Log object|Mojo::Log> to use for logging.
@@ -178,6 +227,19 @@ sub build {
     my $build_log = $build_dir->child( 'build.log' );
 
     $self->log->info( sprintf q{Starting job "%s" build %i}, $self->name, $build_num );
+    my $result = {
+        start => $start,
+        build_number => $build_num,
+    };
+    $self->_notify( start => $result );
+
+    my $last_build_file = $job_dir->child( 'last_build.yml' );
+    my $last_build = {
+        status => 'unknown',
+    };
+    if ( $last_build_file->is_file ) {
+        $last_build = YAML::Load( $last_build_file->slurp_utf8 );
+    }
 
     my %step_args = (
         log_path => $build_log,
@@ -192,27 +254,28 @@ sub build {
         eval { $step->run( %step_args ) };
         if ( my $error = $@ ) {
             $self->log->info( "Step $step_num failed! Stopping! Error: $error" );
-            my $result = {
-                start => $start,
-                end => Time::Piece->new->datetime,
-                build_number => $build_num,
-                status => 'failure',
-                step => $step_num,
-                error => $error,
-            };
+            $result->{end} = Time::Piece->new->datetime;
+            $result->{status} = 'failure';
+            $result->{step} = $step_num;
+            $result->{error} = $error;
             $self->_write_result( $build_dir, $result );
+            $self->_notify( finish => $result );
+            $self->_notify( failure => $result );
             return $result;
         }
     }
 
     $self->log->info( 'Job successful!' );
-    my $result = {
-        start => $start,
-        end => Time::Piece->new->datetime,
-        build_number => $build_num,
-        status => 'success',
-    };
+    $result->{end} = Time::Piece->new->datetime;
+    $result->{status} = 'success';
     $self->_write_result( $build_dir, $result );
+    $self->_notify( finish => $result );
+    $self->_notify( success => $result );
+
+    if ( $last_build->{status} eq 'failure' ) {
+        $self->_notify( recovery => $result );
+    }
+
     return $result;
 }
 
@@ -227,6 +290,17 @@ sub _write_result {
     }
     else {
         $job_dir->child( 'last_failure.yml' )->spew_utf8( $yaml );
+    }
+}
+
+sub _notify {
+    my ( $self, $event, $result ) = @_;
+    my $notify = $self->notify->{ $event };
+    return unless $notify;
+
+    my @notify = ref $notify eq 'ARRAY' ? @$notify : $notify;
+    for my $notify ( @notify ) {
+        $notify->notify( $event, $self, $result );
     }
 }
 

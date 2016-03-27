@@ -3,7 +3,23 @@ use Cradle::Base 'Test';
 use Cradle::Job;
 use YAML;
 
+{
+    package Cradle::Notify::Mock;
+    use Cradle::Base 'Class';
+    has notifications => (
+        is => 'rw',
+        isa => ArrayRef,
+        default => sub { [] },
+    );
+    sub notify {
+        my ( $self, $event, $job, $result ) = @_;
+        push @{ $self->notifications }, [ $event, $job, { %$result } ];
+    }
+}
+
 subtest 'basic job' => sub {
+    my $notify = Cradle::Notify::Mock->new;
+
     my $tmp = tempdir;
     my $job = Cradle::Job->new(
         job_dir => $tmp->child( 'job' ),
@@ -12,6 +28,16 @@ subtest 'basic job' => sub {
                 command => 'echo Hello',
             ),
         ],
+        notify => {
+            success => [
+                $notify,
+                $notify,
+            ],
+            failure => $notify,
+            start => $notify,
+            finish => $notify,
+            recovery => $notify,
+        },
     );
 
     my $result = $job->build;
@@ -49,9 +75,25 @@ subtest 'basic job' => sub {
 
     my $last_failure_file = $tmp->child( qw( job last_failure.yml ) );
     ok !$last_failure_file->exists, 'no last failure status file exists';
+
+    my $start = {
+        start => $result->{start},
+        build_number => $result->{build_number},
+    };
+
+    cmp_deeply $notify->notifications,
+        [
+            [ start => $job, $start ],
+            [ finish => $job, $result ],
+            [ success => $job, $result ],
+            [ success => $job, $result ],
+        ],
+        'notifications are complete and correct';
 };
 
 subtest 'job failure' => sub {
+    my $notify = Cradle::Notify::Mock->new;
+
     my $tmp = tempdir;
     my $job = Cradle::Job->new(
         job_dir => $tmp->child( 'job' ),
@@ -60,6 +102,16 @@ subtest 'job failure' => sub {
                 command => 'echo Hello && exit 1',
             ),
         ],
+        notify => {
+            success => $notify,
+            failure => [
+                $notify,
+                $notify,
+            ],
+            start => $notify,
+            finish => $notify,
+            recovery => $notify,
+        },
     );
 
     my $result = $job->build;
@@ -102,6 +154,84 @@ subtest 'job failure' => sub {
     ok $last_failure_file->is_file, 'last failure status file exists';
     my $last_failure = YAML::Load( $last_failure_file->slurp_utf8 );
     cmp_deeply $last_failure, $status, 'last failure has build status';
+
+    my $start = {
+        start => $result->{start},
+        build_number => $result->{build_number},
+    };
+
+    cmp_deeply $notify->notifications,
+        [
+            [ start => $job, $start ],
+            [ finish => $job, $result ],
+            [ failure => $job, $result ],
+            [ failure => $job, $result ],
+        ],
+        'notifications are complete and correct';
+
+    $notify->notifications( [] );
+    my $failure_status = $status;
+
+    subtest 'recovery notification' => sub {
+        $job->{steps} = [
+            Cradle::Step::Command->new(
+                command => 'echo Hello',
+            ),
+        ];
+
+        my $result = $job->build;
+
+        ok $tmp->child( 'job' )->is_dir, 'job dir is created';
+        ok $tmp->child( 'job', 'build' )->is_dir, 'job build dir is created';
+        ok $tmp->child( 'job', 'build', '2' )->is_dir, 'job has two builds';
+        is $tmp->child( qw( job build 2 build.log ) )->slurp, "Hello\n",
+            'build 2 log has command output';
+
+        is $result->{status}, 'success', 'status is success';
+
+        my $status_file = $tmp->child( qw( job build 2 build.yml ) );
+        ok $status_file->is_file, 'build status file exists';
+        my $status = YAML::Load( $status_file->slurp_utf8 );
+        cmp_deeply $status,
+            {
+                build_number => 2,
+                status => 'success',
+                start => re(qr(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})),
+                end => re(qr(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})),
+            },
+            'build status is complete and correct'
+                or diag explain $status;
+
+        my $last_build_file = $tmp->child( qw( job last_build.yml ) );
+        ok $last_build_file->is_file, 'last build status file exists';
+        my $last_build = YAML::Load( $last_build_file->slurp_utf8 );
+        cmp_deeply $last_build, $status, 'last build has build status';
+
+        my $last_success_file = $tmp->child( qw( job last_success.yml ) );
+        ok $last_success_file->exists, 'last success status file exists';
+        my $last_success = YAML::Load( $last_success_file->slurp_utf8 );
+        cmp_deeply $last_success, $status, 'last success has build status';
+
+        my $last_failure_file = $tmp->child( qw( job last_failure.yml ) );
+        ok $last_failure_file->is_file, 'last failure status file exists';
+        my $last_failure = YAML::Load( $last_failure_file->slurp_utf8 );
+        cmp_deeply $last_failure, $failure_status, 'last failure has previous build status';
+
+        my $start = {
+            start => $result->{start},
+            build_number => $result->{build_number},
+        };
+
+        cmp_deeply $notify->notifications,
+            [
+                [ start => $job, $start ],
+                [ finish => $job, $result ],
+                [ success => $job, $result ],
+                [ recovery => $job, $result ],
+            ],
+            'notifications are complete and correct';
+
+    };
 };
 
 subtest 'load config' => sub {
