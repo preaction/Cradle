@@ -1,19 +1,5 @@
 Changelog for Cradle
 
-0.001 2016-03-19T00:53:57
- - also save last build status in job directory
- - save build status in build directory
- - add email notify class
- - init git in cwd instead and add user info
- - create Cradle::Job object to encapsulate jobs
- - add command step
- - do not run git test unless git is installed
- - add missing prereq
- - explicitly test 5.10.1 to get only core perl
- - do not test 5.8 on travis
- - add git source module
- - fix git environment variables leaking
- - add build artifacts
- - add initial proof-of-concept
- - Minting dist
+{{ $NEXT }}
 
+ - Initial release
